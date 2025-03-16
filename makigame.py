@@ -1,13 +1,68 @@
 import os
 import time
-import msvcrt
 import random
+import contextlib
+
+
+try:
+    import msvcrt
+
+    def getch():
+        return msvcrt.getch()
+
+    def getchmaybe():
+        if msvcrt.kbhit():
+            return msvcrt.getch()
+        return b''
+
+    def cls():
+        os.system("cls")
+
+    @contextlib.contextmanager
+    def realtime():
+        yield
+except ImportError:
+    import fcntl, select, sys, tty, termios
+
+    def getch():
+        fd = sys.stdin.fileno()  # Get the file descriptor for standard input
+        old_settings = termios.tcgetattr(fd)  # Save current terminal settings
+        try:
+            tty.setraw(fd)  # Switch to raw mode (disable buffering)
+            return sys.stdin.read(1).encode()  # Read a single character
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # Restore settings
+
+    def getchmaybe():
+        dr, _, _ = select.select([sys.stdin], [], [], 0)  # Check input
+        if dr != []:
+            read_descriptor = dr[0]
+            c = read_descriptor.read(1)  # Read a single character
+            termios.tcflush(sys.stdin, termios.TCIFLUSH)  # Discard other characters
+            return c.encode()
+        return b''
+
+    def cls():
+        os.system("clear")
+
+    @contextlib.contextmanager
+    def realtime():
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)  # Save old settings
+        old_flags = fcntl.fcntl(fd, fcntl.F_GETFL)  # Save old flags
+        tty.setraw(fd)  # Set raw mode (for instant input)
+        fcntl.fcntl(fd, fcntl.F_SETFL, os.O_NONBLOCK)  # Make stdin non-blocking
+        try:
+            yield
+        finally:
+            fcntl.fcntl(fd, fcntl.F_SETFL, old_flags)  # Reset stdin flags
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # Restore settings
 
 
 class drawing:
 
     def newln(self,brredova):
-        for self.i in range(brredova): print()
+        for self.i in range(brredova): print(end="\r\n")
 
     def space(self,brrazmaka):
         self.razmaci=""
@@ -17,7 +72,7 @@ class drawing:
     def line(self):
         self.ispis=""
         for self.i in range(79): self.ispis+="-"
-        print(self.ispis)
+        print(self.ispis,end="\r\n")
 
     def drawlives(self):
         self.ispis="  Lives:"
@@ -33,60 +88,60 @@ class drawing:
 class components(drawing):
 
     def top(self,ver):
-        os.system("cls")
-        if ver=="ws": print(self.space(24)+"W/S - menu navigation, E - select")
-        elif ver=="ad": print(self.space(24)+"A/D - menu navigation, E - select")
-        elif ver=="q": print(self.space(36)+"Q - back")
-        elif ver=="g": print(self.drawlives()+self.space(45)+self.time())
+        cls()
+        if ver=="ws": print(self.space(24)+"W/S - menu navigation, E - select",end="\r\n")
+        elif ver=="ad": print(self.space(24)+"A/D - menu navigation, E - select",end="\r\n")
+        elif ver=="q": print(self.space(36)+"Q - back",end="\r\n")
+        elif ver=="g": print(self.drawlives()+self.space(45)+self.time(),end="\r\n")
         self.line()
 
     def menustart(self):
         self.newln(8)
         for self.j in range(len(self.startwrt)):
             if self.startpos==self.j:
-                print(self.space(35)+"> "+self.startwrt[self.j].upper()+" <")
-            else: print(self.space(37)+self.startwrt[self.j])
+                print(self.space(35)+"> "+self.startwrt[self.j].upper()+" <",end="\r\n")
+            else: print(self.space(37)+self.startwrt[self.j],end="\r\n")
             self.newln(1)
         self.newln(7)
         self.line()
 
     def info(self):
         self.newln(6)
-        print(self.space(25)+"Use W,A,S,D to move,")
-        print(self.space(25)+"P to pause or Q to exit")
+        print(self.space(25)+"Use W,A,S,D to move,",end="\r\n")
+        print(self.space(25)+"P to pause or Q to exit",end="\r\n")
         self.newln(1)
-        print(self.space(25)+"Hitting an asteroid makes you")
-        print(self.space(25)+"lose one of your 3 lives.")
-        print(self.space(25)+"Try dodging the incoming asteroids.")
-        print(self.space(25)+"When the asteroids stop coming")
-        print(self.space(25)+"prepare yourself!")
+        print(self.space(25)+"Hitting an asteroid makes you",end="\r\n")
+        print(self.space(25)+"lose one of your 3 lives.",end="\r\n")
+        print(self.space(25)+"Try dodging the incoming asteroids.",end="\r\n")
+        print(self.space(25)+"When the asteroids stop coming",end="\r\n")
+        print(self.space(25)+"prepare yourself!",end="\r\n")
         self.newln(7)
         self.line()
 
     def endscrn(self,ver):
         if ver=="q":
             self.newln(9)
-            print(self.space(25)+"Are you sure you want to quit?")
+            print(self.space(25)+"Are you sure you want to quit?",end="\r\n")
         elif ver=="go":
             self.newln(7)
-            print(self.space(35)+"GAME OVER!")
+            print(self.space(35)+"GAME OVER!",end="\r\n")
             self.newln(3)
-            print(self.space(37)+"Retry:")
+            print(self.space(37)+"Retry:",end="\r\n")
         self.newln(1)
-        if self.quitpos: print(self.space(34)+" yes  / >NO<")
-        else: print(self.space(34)+">YES< /  no")
+        if self.quitpos: print(self.space(34)+" yes  / >NO<",end="\r\n")
+        else: print(self.space(34)+">YES< /  no",end="\r\n")
         if ver=="q": self.newln(9)
         elif ver=="go": self.newln(7)
         self.line()
 
     def pausescrn(self):
         self.newln(7)
-        print(self.space(35)+"Game paused")
+        print(self.space(35)+"Game paused",end="\r\n")
         self.newln(2)
         for self.j in range(len(self.pausewrt)):
             if self.pausepos==self.j:
-                print(self.space(35)+"> "+self.pausewrt[self.j].upper()+" <")
-            else: print(self.space(37)+self.pausewrt[self.j])
+                print(self.space(35)+"> "+self.pausewrt[self.j].upper()+" <",end="\r\n")
+            else: print(self.space(37)+self.pausewrt[self.j],end="\r\n")
             self.newln(1)
         self.newln(7)
         self.line()
@@ -97,17 +152,17 @@ class components(drawing):
             if type(self.instructions[self.i])==type(1): continue
             elif self.instructions[self.i]=="nl": self.newln(self.instructions[self.i+1])
             elif self.instructions[self.i]=="ch":
-                print(self.char.draw(self.instructions[self.i+1]))
+                print(self.char.draw(self.instructions[self.i+1]),end="\r\n")
             elif self.instructions[self.i]=="en":
-                print(self.enemy.draw(self.instructions[self.i+1],self.instructions[self.i+2]))
+                print(self.enemy.draw(self.instructions[self.i+1],self.instructions[self.i+2]),end="\r\n")
             elif self.instructions[self.i]=="ench":
                 self.ispis=self.enemy.draw(self.instructions[self.i+1],self.instructions[self.i+2])
                 self.ispis+=self.char.draw(self.instructions[self.i+3])
-                print(self.ispis)
+                print(self.ispis,end="\r\n")
             elif self.instructions[self.i]=="chen":
                 self.ispis=self.char.draw(self.instructions[self.i+1])
                 self.ispis+=self.enemy.draw(self.instructions[self.i+2],self.instructions[self.i+3])
-                print(self.ispis)
+                print(self.ispis,end="\r\n")
         self.line()
 
 class menu(components):
@@ -115,7 +170,7 @@ class menu(components):
     startwrt=["Start","Instructions","Quit"]
     pausewrt=["Resume","Quit"]
     menumoves=[b'w',b's',b'q',b'e',b'a',b'd']
-    
+
     def __init__(self):
         self.startpos=0
 
@@ -124,7 +179,7 @@ class menu(components):
         while 1:
             self.top("ws")
             self.menustart()
-            self.c=msvcrt.getch()
+            self.c=getch()
             if self.c==self.menumoves[0]:
                 self.startpos-=1
                 self.startpos%=3
@@ -136,21 +191,21 @@ class menu(components):
                 if self.startpos==1: self.instructions()
                 if self.startpos==2:
                     if self.end("q"):
-                        os.system("cls")
+                        cls()
                         break
 
     def instructions(self):
         while self.c!=self.menumoves[2]:
             self.top("q")
             self.info()
-            self.c=msvcrt.getch()
+            self.c=getch()
 
     def end(self,ver):
         self.quitpos=0
         while 1:
             self.top("ad")
             self.endscrn(ver)
-            self.c=msvcrt.getch()
+            self.c=getch()
             if self.c==self.menumoves[4] and self.quitpos: self.quitpos=0
             elif self.c==self.menumoves[5] and not self.quitpos: self.quitpos=1
             elif self.c==self.menumoves[3]:
@@ -161,7 +216,7 @@ class menu(components):
         while 1:
             self.top("ws")
             self.pausescrn()
-            self.c=msvcrt.getch()
+            self.c=getch()
             if self.c==self.menumoves[0]:
                 self.pausepos-=1
                 self.pausepos%=2
@@ -304,7 +359,7 @@ class enemy(components):
         self.x[num]=0
         self.y[num]=0
         self.speed[num]=0
-        
+
     def sort(self):
         for self.i in range(len(self.exists)-1):
             if self.exists[self.i]: continue
@@ -346,7 +401,7 @@ class game(components):
     tact=10
     movespeed=10
     spawnspeed=2
-    
+
     charmoves=[b'w',b'a',b's',b'd']
     choices=[b'y',b'n']
     stoppers=[b'q',b'p']
@@ -355,7 +410,7 @@ class game(components):
     char=char()
     enemy=enemy()
     ai=ai()
-    
+
     def __init__(self):
         random.seed(time.time())
         self.setup()
@@ -369,7 +424,7 @@ class game(components):
         self.lives=3
 
     def end(self):
-        if not self.menu.end("go"): os.system("cls")
+        if not self.menu.end("go"): cls()
         else:
             self.char.setup()
             self.enemy.setup()
@@ -383,26 +438,26 @@ class game(components):
         if not self.quit:
             self.c=''
             self.run()
-        else: os.system("cls")
+        else: cls()
 
     def run(self):
-        while self.c not in self.stoppers and self.lives:
-            if self.c in self.charmoves or self.t%(self.tact/self.movespeed)==0:
-                if self.c in self.charmoves:
-                    self.char.move(self.c)
-                    self.c=''
-                if self.t%(self.tact/self.movespeed)==0:
-                    self.enemy.move()
-                if self.t%(self.tact/self.spawnspeed)==0:
-                    self.ai.spawncalc(self.char,self.enemy,self.t//(self.tact/self.spawnspeed))
-                self.lives-=self.ai.collisioncalc(self.char,self.enemy)
-                self.top("g")
-                self.main()
-            self.t+=1
-            if not self.t%self.tact: self.tt=self.t//self.tact
-            if msvcrt.kbhit():
-                self.c=msvcrt.getch()
-            time.sleep(1/self.tact)
+        with realtime():
+            while self.c not in self.stoppers and self.lives:
+                if self.c in self.charmoves or self.t%(self.tact/self.movespeed)==0:
+                    if self.c in self.charmoves:
+                        self.char.move(self.c)
+                        self.c=''
+                    if self.t%(self.tact/self.movespeed)==0:
+                        self.enemy.move()
+                    if self.t%(self.tact/self.spawnspeed)==0:
+                        self.ai.spawncalc(self.char,self.enemy,self.t//(self.tact/self.spawnspeed))
+                    self.lives-=self.ai.collisioncalc(self.char,self.enemy)
+                    self.top("g")
+                    self.main()
+                self.t+=1
+                if not self.t%self.tact: self.tt=self.t//self.tact
+                self.c = getchmaybe()
+                time.sleep(1/self.tact)
         if self.lives: self.stop()
         else: self.end()
 

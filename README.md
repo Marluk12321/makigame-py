@@ -11,3 +11,15 @@ The player moves a spaceship to avoid incoming asteroids. The goal is to survive
 ### pygame-taste.py
 
 A simple experiment to draw a bouncing ball image using `pygame`.
+
+Installing requirements:
+
+``` bash
+pip install pygame
+```
+
+or
+
+``` bash
+pip install --requirement pygame-taste-requirements.txt
+```
